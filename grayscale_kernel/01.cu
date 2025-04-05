@@ -40,19 +40,7 @@ int main() {
   dim3 blockSize(32, 32);
   dim3 gridSize((width + blockSize.x - 1) / blockSize.x,
                 (height + blockSize.y - 1) / blockSize.y);
-  cudaEvent_t start, stop;
-  float elapsedTime;
-
-  cudaEventCreate(&start);
-  cudaEventCreate(&stop);
-
-  cudaEventRecord(start, 0);
   grayKernel<<<gridSize, blockSize>>>(d_input, d_output, width, height);
-  cudaDeviceSynchronize();
-  cudaEventRecord(stop, 0);
-  cudaEventSynchronize(stop);
-  cudaEventElapsedTime(&elapsedTime, start, stop);
-  printf("The time taken for conversion is %f\n", elapsedTime);
   cudaMemcpy(h_output, d_output, graySize, cudaMemcpyDeviceToHost);
 
   cv::Mat output_img(height, width, CV_8UC1, h_output);
