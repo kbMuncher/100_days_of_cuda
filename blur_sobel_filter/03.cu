@@ -19,7 +19,7 @@ __global__ void grayKernel(unsigned char *Pin, unsigned char *Pout, int width,
     Pout[grayoffSet] = L;
   }
 }
-__global__ void sobelEdgeKernel(unsigned char *input, unsigned char *output,
+__global__ void sobelEdgeKernel(unsigned char *Pin, unsigned char *Pout,
                                 int width, int height) {
   int sobelX[3][3] = {{-1, 0, 1}, {-2, 0, 2}, {-1, 0, 1}};
   int sobelY[3][3] = {{-1, -2, -1}, {0, 0, 0}, {1, 2, 1}};
@@ -37,7 +37,7 @@ __global__ void sobelEdgeKernel(unsigned char *input, unsigned char *output,
         int y = min(max(row + ky, 0), height - 1);
         int offset = y * width + x;
 
-        float gray = input[offset];
+        float gray = Pin[offset];
         gx += gray * sobelX[ky + 1][kx + 1];
         gy += gray * sobelY[ky + 1][kx + 1];
       }
@@ -45,7 +45,7 @@ __global__ void sobelEdgeKernel(unsigned char *input, unsigned char *output,
 
     int idx = row * width + col;
     unsigned char edge = min(max((int)sqrtf(gx * gx + gy * gy), 0), 255);
-    output[idx] = edge;
+    Pout[idx] = edge;
   }
 }
 
