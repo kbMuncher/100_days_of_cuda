@@ -1,5 +1,3 @@
-#include <__clang_cuda_builtin_vars.h>
-#include <__clang_cuda_runtime_wrapper.h>
 #include <cstdio>
 #include <cstdlib>
 #include <cuda_runtime.h>
@@ -60,17 +58,41 @@ void delinearize(matrix K, int *l) {
     }
   }
 }
+#define TILE_WIDTH 2
 
 __global__ void dotKerenl(int *A, int *B, int *C, int A_rows, int A_cols,
                           int B_cols) {
-  int rows = threadIdx.y + blockIdx.y * blockDim.y;
-  int cols = threadIdx.x + blockIdx.x + blockDim.x;
-  if (rows < A_rows && cols < B_cols) {
-    int sum = 0;
-    for (int i = 0; i < A_cols; ++i) {
-      sum += A[rows * A_cols + i] * B[i * B_cols + cols];
+
+  __shared__ int Mds[TILE_WIDTH][TILE_WIDTH];
+  __shared__ int Nds[TILE_WIDTH][TILE_WIDTH];
+
+  int bx = blockIdx.x;
+  int by = blockIdx.y;
+  int tx = threadIdx.x;
+  int ty = threadIdx.y;
+
+  int row = by * TILE_WIDTH + ty;
+  int col = bx * TILE_WIDTH + tx;
+  int Pval = 0;
+  for (int i = 0; i < (A_cols + TILE_WIDTH - 1) / TILE_WIDTH; ++i) {
+    if ((row < A_rows) && (i * TILE_WIDTH + tx) < A_cols) {
+      Mds[ty][tx] = A[row * A_cols + i * TILE_WIDTH + tx];
+    } else {
+      Mds[ty][tx] = 0;
     }
-    C[rows * B_cols + cols] = sum;
+    if ((i * TILE_WIDTH + ty) < A_cols && col < B_cols) {
+      Nds[ty][tx] = B[(i * TILE_WIDTH + ty) * B_cols + col];
+    } else {
+      Nds[ty][tx] = 0;
+    }
+    __syncthreads();
+    for (int k = 0; k < TILE_WIDTH; ++k) {
+      Pval += Mds[ty][k] * Nds[k][tx];
+    }
+    __syncthreads();
+  }
+  if ((row < A_rows) && (col < B_cols)) {
+    C[row * B_cols + col] = Pval;
   }
 }
 void matrixMulKerenel(matrix A, matrix B, matrix C) {
@@ -86,13 +108,12 @@ void matrixMulKerenel(matrix A, matrix B, matrix C) {
   cudaMemcpy(A_d, A_l, A.rows * A.cols * sizeof(int), cudaMemcpyHostToDevice);
   cudaMemcpy(B_d, B_l, B.rows * B.cols * sizeof(int), cudaMemcpyHostToDevice);
 
-  dim3 threadPerBlock(16, 16);
-  dim3 blocksPerGrid((C.cols + threadPerBlock.x - 1) / threadPerBlock.x,
-                     (C.rows + threadPerBlock.y - 1) / threadPerBlock.y);
+  dim3 Block(TILE_WIDTH, TILE_WIDTH);
+  dim3 Grid((C.cols + TILE_WIDTH - 1) / TILE_WIDTH,
+            (C.rows + TILE_WIDTH - 1) / TILE_WIDTH);
 
   // kernel call
-  dotKerenl<<<blocksPerGrid, threadPerBlock>>>(A_d, B_d, C_d, A.rows, A.cols,
-                                               B.cols);
+  dotKerenl<<<Grid, Block>>>(A_d, B_d, C_d, A.rows, A.cols, B.cols);
   cudaMemcpy(C_l, C_d, C.rows * C.cols * sizeof(int), cudaMemcpyDeviceToHost);
   free(A_l);
   free(B_l);
