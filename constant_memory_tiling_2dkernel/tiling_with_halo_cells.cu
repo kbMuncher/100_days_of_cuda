@@ -116,7 +116,7 @@ int main() {
     dim3 block(TILE_DIM, TILE_DIM);
     dim3 gird((A.cols + TILE_DIM - 1) / TILE_DIM,
               (A.rows + TILE_DIM - 1) / TILE_DIM);
-    conv2DKernel<<<gird, block>>>(m_h, m_d, A.rows, A.cols);
+    conv2DKernel<<<gird, block>>>(m_h, m_d, A.cols, A.rows);
     cudaMemcpy(o_h, m_d, A.rows * A.cols * sizeof(int), cudaMemcpyDeviceToHost);
     cudaFree(m_h);
     cudaFree(m_d);
