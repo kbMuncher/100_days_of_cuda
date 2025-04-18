@@ -1,5 +1,4 @@
 #include <cmath>
-#include <stdatomic.h>
 #include <stdio.h>
 #define N 32
 #define BLOCK_SIZE 16 // 2D grid so 256
@@ -40,6 +39,27 @@ int main() {
   cudaMemcpy(fx_d, f_x, N * N * sizeof(float), cudaMemcpyHostToDevice);
 
   dim3 block(BLOCK_SIZE, BLOCK_SIZE);
-  dim3 gird((N + BLOCK_SIZE - 1) / BLOCK_SIZE,
+  dim3 grid((N + BLOCK_SIZE - 1) / BLOCK_SIZE,
             (N + BLOCK_SIZE - 1) / BLOCK_SIZE);
+  p_2D_derivative<<<grid, block>>>(fx_d, df_dx_d, df_dy_d, N, N, H);
+  cudaDeviceSynchronize();
+  cudaMemcpy(df_dx, df_dx_d, N * N * sizeof(float), cudaMemcpyDeviceToHost);
+  cudaMemcpy(df_dy, df_dy_d, N * N * sizeof(float), cudaMemcpyDeviceToHost);
+  cudaFree(fx_d);
+  cudaFree(df_dx_d);
+  cudaFree(df_dy_d);
+  printf("| x\t y |  df/dx |  COS(x) |  error |  df/dy |  -SIN(x) |  error \n");
+  for (int j = 1; j < 5; j++) {
+    for (int i = 1; i < 5; i++) {
+      float x = i * H;
+      float y = j * H;
+      int idx = j * N + i;
+      printf("| %.2f %.2f | %.6f | %.6f | %.6f | %.6f | %.6f | %.6f\n", x, y,
+             df_dx[idx], cosf(x), fabsf(df_dx[idx] - cosf(x)), df_dy[idx],
+             -sinf(y), fabsf(df_dy[idx] + sinf(y)));
+    }
+  }
+  delete[] f_x;
+  delete[] df_dy;
+  delete[] df_dx;
 }
