@@ -2,6 +2,8 @@
 #include <iostream>
 
 #define N 8
+#define IN_TILE_DIM 6
+#define OUT_TILE_DIM 4
 #define BLOCK_SIZE 4
 
 __constant__ float c0 = 0.01f;
@@ -13,21 +15,31 @@ __constant__ float c5 = 0.05f;
 __constant__ float c6 = 0.01f;
 
 __global__ void stencil_sweep_3D(float *in, float *out, int n) {
-  int i = blockDim.z * blockIdx.z + threadIdx.z; // [N, N , _]
-  int j = blockIdx.y * blockDim.y + threadIdx.y; //[N ,_, N]
-  int k = blockIdx.x * blockDim.x + threadIdx.x; //[_,N,N]
+  int i = blockIdx.z * OUT_TILE_DIM + threadIdx.z;
+  int j = blockIdx.y * OUT_TILE_DIM + threadIdx.y;
+  int k = blockIdx.x * OUT_TILE_DIM + threadIdx.x;
+  __shared__ float in_s[IN_TILE_DIM][IN_TILE_DIM][IN_TILE_DIM];
 
-  if (i > 0 && i < n - 1 && j > 0 && j < n - 1 && k > 0 && k < n - 1) {
-    out[i * n * n + j * n + k] = c0 * in[i * n * n + j * n + k] +
-                                 c5 * in[(i - 1) * n * n + j * n + k] +
-                                 c6 * in[(i + 1) * n * n + j * n + k] +
-                                 c3 * in[i * n * n + (j - 1) * n + k] +
-                                 c4 * in[i * n * n + (j + 1) * n + k] +
-                                 c1 * in[i * n * n + j * n + (k - 1)] +
-                                 c2 * in[i * n * n + j * n + (k + 1)];
+  int sh_i = threadIdx.z + 1;
+  int sh_j = threadIdx.y + 1;
+  int sh_k = threadIdx.x + 1;
+
+  if (i >= 0 && i < n && j >= 0 && j < n && k >= 0 && k < n) {
+    in_s[sh_i][sh_j][sh_k] = in[i * n * n + j * n + k];
+  } else {
+    in_s[sh_i][sh_j][sh_k] = 0.0f;
   }
-}
+  __syncthreads();
 
+  if (i >= 1 && i < n - 1 && j >= 1 && j < n - 1 && k >= 1 && k < n - 1) {
+    out[i * n * n + j * n + k] =
+        c0 * in_s[sh_i][sh_j][sh_k] + c5 * in_s[sh_i - 1][sh_j][sh_k] +
+        c6 * in_s[sh_i + 1][sh_j][sh_k] + c3 * in_s[sh_i][sh_j - 1][sh_k] +
+        c4 * in_s[sh_i][sh_j + 1][sh_k] + c1 * in_s[sh_i][sh_j][sh_k - 1] +
+        c2 * in_s[sh_i][sh_j][sh_k + 1];
+  }
+  __syncthreads();
+}
 int main() {
   unsigned int size = N * N * N * sizeof(float);
   float *in_h = new float[N * N * N];
@@ -48,9 +60,10 @@ int main() {
 
   cudaMemcpy(in_d, in_h, size, cudaMemcpyHostToDevice);
   dim3 block(BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
-  dim3 grid((N - 2 + BLOCK_SIZE - 1) / BLOCK_SIZE,
-            (N - 2 + BLOCK_SIZE - 1) / BLOCK_SIZE,
-            (N - 2 + BLOCK_SIZE - 1) / BLOCK_SIZE);
+  dim3 grid(2, 2,
+            2); // use (BLOCK_SIZE+N-1)/BLOCK_SIZE
+                // now this means tioal threads per block is 4*4*4 = 64 amd
+                // blocks per grid is 8 i.e thread per kernel launch is 512
 
   stencil_sweep_3D<<<grid, block>>>(in_d, out_d, N);
 
