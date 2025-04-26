@@ -1,8 +1,8 @@
 
+#include "json.hpp"
 #include <cuda_runtime.h>
 #include <fstream>
 #include <iostream>
-#include <json.hpp>
 #include <vector>
 
 using json = nlohmann::json;
