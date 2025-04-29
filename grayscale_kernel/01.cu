@@ -1,5 +1,5 @@
+#include "opencv2/opencv.hpp"
 #include <cstdio>
-#include <opencv2/opencv.hpp>
 
 __global__ void grayKernel(unsigned char *Pin, unsigned char *Pout, int width,
                            int height) {
