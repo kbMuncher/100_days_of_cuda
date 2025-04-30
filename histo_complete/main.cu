@@ -1,8 +1,8 @@
+#include <chrono>
 #include <cstdio>
 #include <cstring>
 #include <iostream>
 #include <string>
-#include <thread>
 using namespace std;
 __global__ void histo_kernel(char *data, int length, int *histo) {
   unsigned int i = blockDim.x * blockIdx.x + threadIdx.x;
@@ -25,6 +25,7 @@ int main() {
   }
 
   int size = data.length();
+  auto start = std::chrono::high_resolution_clock::now();
   // kerenl config
   char *data_d;
   int *histo;
@@ -56,4 +57,8 @@ int main() {
       printf("%c %c  %d\n", 'a' + 4 * i, 'b' + 4 * i, count_histo[i]);
     }
   }
+  auto end = std::chrono::high_resolution_clock::now();
+  auto duration =
+      std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+  cout << "Total execution time: " << duration.count() << " ms\n";
 }
