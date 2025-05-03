@@ -3,7 +3,8 @@
 #include "opencv2/imgcodecs.hpp"
 #include <cstdlib>
 #include <opencv2/opencv.hpp>
-
+using namespace std;
+#include <chrono>
 __global__ void histo_eq(unsigned char *in, int *histo, int width, int height) {
   int idx =
       blockDim.x * blockIdx.x +
@@ -21,6 +22,8 @@ __global__ void cdf(unsigned char *in, unsigned char *out, unsigned char *cdf,
   }
 }
 int main() {
+  auto start = std::chrono::high_resolution_clock::now();
+
   cv::Mat img = cv::imread("gray.jpg", cv::IMREAD_GRAYSCALE);
   int width = img.cols;
   int height = img.rows;
@@ -62,6 +65,10 @@ int main() {
   cudaFree(d_cdf);
   cudaFree(d_histo);
   delete[] h_output;
+  auto end = std::chrono::high_resolution_clock::now();
+  auto duration =
+      std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+  cout << "Total execution time: " << duration.count() << " ms\n";
 
   return 0;
 }
